@@ -7,3 +7,4 @@ Start the project :
     ./mvnw clean verify
     ./create_measurements.sh 1000000000
     ```
+This will get you started with a measurement file having 1 Billion of data.
