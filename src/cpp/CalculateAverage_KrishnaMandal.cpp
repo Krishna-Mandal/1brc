@@ -1,37 +1,110 @@
-//
-// Created by mfw-150 on 10/31/24.
-//
-
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <vector>
+#include <map>
 #include <string>
+#include <algorithm>
+#include <numeric>
+#include <filesystem>
+#include <cfloat>
+#include <thread>
+#include <mutex>
+#include <cmath>
+#include <future>
 
-std::string fileName = "../measurements.txt";
+struct CityStats {
+    double min_temp;
+    double max_temp;
+    double total_temp;
+    size_t count;
+
+    CityStats() : min_temp(DBL_MAX), max_temp(DBL_MIN), total_temp(0), count(0) {}
+
+    void update(double temp) {
+        if (temp < min_temp) min_temp = temp;
+        if (temp > max_temp) max_temp = temp;
+        total_temp += temp;
+        ++count;
+    }
+
+    double average() const {
+        return count ? total_temp / count : 0;
+    }
+
+    static double round_to_one_decimal(double value) {
+        return std::round(value * 10.0) / 10.0;
+    }
+};
+
+std::mutex mtx;
+
+void process_chunk(std::vector<std::string>&& lines, std::map<std::string, CityStats>& city_data) {
+    for (const auto& line : lines) {
+        std::istringstream ss(line);
+        std::string city;
+        std::string temp_str;
+        if (std::getline(ss, city, ';') && std::getline(ss, temp_str)) {
+            try {
+                double temp = std::stod(temp_str);
+                std::lock_guard<std::mutex> lock(mtx);
+                city_data[city].update(temp);
+            } catch (const std::invalid_argument& e) {
+                std::cerr << "Invalid temperature value for city " << city << ": " << temp_str << '\n';
+            }
+        }
+    }
+}
 
 int main() {
-    std::ifstream file(fileName, std::ios::in | std::ios::binary);
-    if (!file) {
-        std::cerr << "Unable to open file 'measurement.txt'\n";
+    std::string filePath = "../measurements.txt";
+    std::ifstream file(filePath, std::ios::in | std::ios::binary);
+    if (!file.is_open()) {
+        std::cerr << "Unable to open file '" << filePath << "'\n";
         return 1;
     }
 
-    constexpr  size_t BUFFER_SIZE = 1024 * 1024; // 1 MB buffer
-    std::vector<char> buffer(BUFFER_SIZE);
-    std::string line;
-    size_t line_count = 0;
+    std::map<std::string, CityStats> city_data;
+    std::vector<std::string> lines;
+    const size_t buffer_size = 10 * 1024 * 1024; // 10 MB buffer, adjust as needed
+    std::vector<char> buffer(buffer_size);
+    std::vector<std::future<void>> futures;
 
+    std::string leftover;
     while (file.read(buffer.data(), buffer.size()) || file.gcount() > 0) {
-        size_t bytes_read = file.gcount();
-        for (size_t i = 0; i < bytes_read; ++i) {
-            if (buffer[i] == '\n') {
-                ++line_count;
-                // calculate min, max, average
+        std::string chunk(buffer.data(), file.gcount());
+        chunk = leftover + chunk;
+        leftover.clear();
+        std::istringstream ss(chunk);
+        std::string line;
+        while (std::getline(ss, line)) {
+            if (ss.eof() && chunk.back() != '\n') {
+                leftover = line;
+            } else {
+                lines.push_back(line);
+                if (lines.size() >= 1000000) { // Adjust chunk size as needed
+                    futures.emplace_back(std::async(std::launch::async, process_chunk, std::move(lines), std::ref(city_data)));
+                    lines.clear();
+                }
             }
         }
     }
 
+    if (!lines.empty()) {
+        futures.emplace_back(std::async(std::launch::async, process_chunk, std::move(lines), std::ref(city_data)));
+    }
+
+    for (auto& future : futures) {
+        future.get();
+    }
+
     file.close();
-    std::cout << "Total lines read: " << line_count << "\n";
+
+    for (const auto& [city, stats] : city_data) {
+        std::cout << city << "=" << CityStats::round_to_one_decimal(stats.min_temp)
+                  << "/" << CityStats::round_to_one_decimal(stats.average())
+                  << "/" << CityStats::round_to_one_decimal(stats.max_temp) << '\n';
+    }
+
     return 0;
 }
