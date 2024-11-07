@@ -40,6 +40,7 @@ struct CityStats {
 std::mutex mtx;
 
 void process_chunk(std::vector<std::string>&& lines, std::map<std::string, CityStats>& city_data) {
+    std::map<std::string, CityStats> local_data;
     for (const auto& line : lines) {
         std::istringstream ss(line);
         std::string city;
@@ -47,12 +48,15 @@ void process_chunk(std::vector<std::string>&& lines, std::map<std::string, CityS
         if (std::getline(ss, city, ';') && std::getline(ss, temp_str)) {
             try {
                 double temp = std::stod(temp_str);
-                std::lock_guard<std::mutex> lock(mtx);
-                city_data[city].update(temp);
+                local_data[city].update(temp);
             } catch (const std::invalid_argument& e) {
                 std::cerr << "Invalid temperature value for city " << city << ": " << temp_str << '\n';
             }
         }
+    }
+    std::lock_guard<std::mutex> lock(mtx);
+    for (const auto& [city, stats] : local_data) {
+        city_data[city].update(stats.total_temp / stats.count);
     }
 }
 
