@@ -8,7 +8,6 @@
 #include <numeric>
 #include <filesystem>
 #include <cfloat>
-#include <thread>
 #include <mutex>
 #include <cmath>
 #include <future>
@@ -55,10 +54,11 @@ void process_chunk(const std::vector<std::string>& lines, std::map<std::string, 
         }
     }
 
-    std::lock_guard<std::mutex> lock(mtx);
+    std::lock_guard lock(mtx);
     for (const auto& [city, stats] : local_data) {
         auto& global_stats = city_data[city];
-        global_stats.update(stats.total_temp / stats.count);
+        global_stats.total_temp = global_stats.total_temp + stats.total_temp;
+        global_stats.count = global_stats.count + stats.count;
         global_stats.min_temp = std::min(global_stats.min_temp, stats.min_temp);
         global_stats.max_temp = std::max(global_stats.max_temp, stats.max_temp);
     }
@@ -74,7 +74,7 @@ int main() {
 
     std::map<std::string, CityStats> city_data;
     std::vector<std::string> lines;
-    const size_t buffer_size = 10 * 1024 * 1024; // 10 MB buffer, adjust as needed
+    constexpr  size_t buffer_size = 10 * 1024 * 1024; // 10 MB buffer, adjust as needed
     std::vector<char> buffer(buffer_size);
     std::vector<std::future<void>> futures;
 
@@ -109,9 +109,9 @@ int main() {
     file.close();
 
     for (const auto& [city, stats] : city_data) {
-        std::cout << city << "=" << CityStats::round_to_one_decimal(stats.min_temp)
-                  << "/" << CityStats::round_to_one_decimal(stats.average())
-                  << "/" << CityStats::round_to_one_decimal(stats.max_temp) << '\n';
+        std::cout << city << "=" << std::fixed << std::setprecision(1) << CityStats::round_to_one_decimal(stats.min_temp)
+                  << "/" << std::fixed << std::setprecision(1) << CityStats::round_to_one_decimal(stats.average())
+                  << "/" << std::fixed << std::setprecision(1) << CityStats::round_to_one_decimal(stats.max_temp) << '\n';
     }
 
     return 0;
