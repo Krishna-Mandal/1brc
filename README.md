@@ -9,6 +9,14 @@ This is a fork of https://github.com/gunnarmorling/1brc and i will be doing this
     
 This will get you started with a measurement file having 1 Billion of data.
 
+## how to run this:
+### Using Cmake
+    mkdir build
+    cd build
+    cmake ..
+    cmake --build .
+    ./1brc
+
 ## 1st version :
 This was just  apartial implementation to read one billion lines one by one by getlne method. This does not calculate anything else so far.
 Since it contains so much of I/O, it is very slow, so slow, that i had to kill process.
