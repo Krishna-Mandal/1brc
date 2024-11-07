@@ -39,7 +39,7 @@ struct CityStats {
 
 std::mutex mtx;
 
-void process_chunk(std::vector<std::string>&& lines, std::map<std::string, CityStats>& city_data) {
+void process_chunk(const std::vector<std::string>& lines, std::map<std::string, CityStats>& city_data) {
     std::map<std::string, CityStats> local_data;
     for (const auto& line : lines) {
         std::istringstream ss(line);
@@ -54,9 +54,13 @@ void process_chunk(std::vector<std::string>&& lines, std::map<std::string, CityS
             }
         }
     }
+
     std::lock_guard<std::mutex> lock(mtx);
     for (const auto& [city, stats] : local_data) {
-        city_data[city].update(stats.total_temp / stats.count);
+        auto& global_stats = city_data[city];
+        global_stats.update(stats.total_temp / stats.count);
+        global_stats.min_temp = std::min(global_stats.min_temp, stats.min_temp);
+        global_stats.max_temp = std::max(global_stats.max_temp, stats.max_temp);
     }
 }
 
