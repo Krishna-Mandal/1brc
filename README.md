@@ -22,4 +22,11 @@ Reading a chunk of memory (1MB), instead of each line. Significant improvemt in 
     real	0m39.396s
     user	0m37.915s
     sys	0m1.479s
-    
+
+## 3rd version :
+Reading 10 MB ata time.Batch processing of files.
+Less frequent data update in global map.
+
+    real	1m32.764s
+    user	10m49.175s
+    sys	0m12.184s
