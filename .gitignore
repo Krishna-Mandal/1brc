@@ -50,4 +50,4 @@ out_expected.txt
 
 build/
 cmake-build-debug/
-bazel-*/
+bazel-*
