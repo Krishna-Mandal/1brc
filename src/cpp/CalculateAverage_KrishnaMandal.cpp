@@ -81,7 +81,7 @@ int main() {
     std::string leftover;
     while (file.read(buffer.data(), buffer.size()) || file.gcount() > 0) {
         std::string chunk(buffer.data(), file.gcount());
-        chunk = leftover + chunk;
+        chunk = leftover.append(chunk);
         leftover.clear();
         std::istringstream ss(chunk);
         std::string line;
