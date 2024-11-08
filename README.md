@@ -15,7 +15,12 @@ This will get you started with a measurement file having 1 Billion of data.
     cd build
     cmake ..
     cmake --build .
-    ./1brc
+    cd ..
+    ./build/1brc
+
+### using bazel
+    bazel build //src/cpp:1brc
+    bazel run //src/cpp:1brc
 
 ## 1st version :
 This was just  apartial implementation to read one billion lines one by one by getlne method. This does not calculate anything else so far.
