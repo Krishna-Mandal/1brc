@@ -38,9 +38,19 @@ struct CityStats {
 
 std::mutex mtx;
 
-void process_chunk(const std::vector<std::string>& lines, std::map<std::string, CityStats>& city_data) {
+void process_chunk(const std::string& filePath, std::streampos start, std::streampos end, std::map<std::string, CityStats>& city_data) {
+    std::ifstream file(filePath, std::ios::in | std::ios::binary);
+    file.seekg(start);
+
     std::map<std::string, CityStats> local_data;
-    for (const auto& line : lines) {
+    std::string line;
+
+    // Ensure we start reading from the beginning of a line
+    if (start != 0) {
+        std::getline(file, line);
+    }
+
+    while (file.tellg() < end && std::getline(file, line)) {
         std::istringstream ss(line);
         std::string city;
         std::string temp_str;
@@ -57,11 +67,14 @@ void process_chunk(const std::vector<std::string>& lines, std::map<std::string, 
     std::lock_guard<std::mutex> lock(mtx);
     for (const auto& [city, stats] : local_data) {
         auto& global_stats = city_data[city];
-        global_stats.total_temp = global_stats.total_temp + stats.total_temp;
-        global_stats.count = global_stats.count + stats.count;
+        global_stats.total_temp += stats.total_temp;
+        global_stats.count += stats.count;
         global_stats.min_temp = std::min(global_stats.min_temp, stats.min_temp);
         global_stats.max_temp = std::max(global_stats.max_temp, stats.max_temp);
     }
+
+    // Debug print to check if the chunk was processed
+    std::cout << "Processed chunk from " << start << " to " << end << std::endl;
 }
 
 int main() {
@@ -73,34 +86,21 @@ int main() {
         return 1;
     }
 
+    file.seekg(0, std::ios::end);
+    std::streampos file_size = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    const size_t num_threads = std::thread::hardware_concurrency();
+    std::streampos chunk_size = file_size / num_threads;
+
     std::map<std::string, CityStats> city_data;
-    std::vector<std::string> lines;
-    constexpr  size_t buffer_size = 10 * 1024 * 1024; // 10 MB buffer, adjust as needed
-    std::vector<char> buffer(buffer_size);
     std::vector<std::future<void>> futures;
 
-    std::string leftover;
-    while (file.read(buffer.data(), buffer.size()) || file.gcount() > 0) {
-        std::string chunk(buffer.data(), file.gcount());
-        chunk = leftover.append(chunk);
-        leftover.clear();
-        std::istringstream ss(chunk);
-        std::string line;
-        while (std::getline(ss, line)) {
-            if (ss.eof() && chunk.back() != '\n') {
-                leftover = line;
-            } else {
-                lines.push_back(line);
-                if (lines.size() >= 1000000) { // Adjust chunk size as needed
-                    futures.emplace_back(std::async(std::launch::async, process_chunk, std::move(lines), std::ref(city_data)));
-                    lines.clear();
-                }
-            }
-        }
-    }
+    for (size_t i = 0; i < num_threads; ++i) {
+        std::streampos start = i * chunk_size;
+        std::streampos end = (i == num_threads - 1) ? file_size : std::streampos((i + 1) * chunk_size);
 
-    if (!lines.empty()) {
-        futures.emplace_back(std::async(std::launch::async, process_chunk, std::move(lines), std::ref(city_data)));
+        futures.emplace_back(std::async(std::launch::async, process_chunk, filePath, start, end, std::ref(city_data)));
     }
 
     for (auto& future : futures) {
@@ -109,6 +109,8 @@ int main() {
 
     file.close();
 
+    // Debug print to check if data was aggregated
+    std::cout << "Aggregated data:" << std::endl;
     for (const auto& [city, stats] : city_data) {
         std::cout << city << "=" << std::fixed << std::setprecision(1) << CityStats::round_to_one_decimal(stats.min_temp)
                   << "/" << std::fixed << std::setprecision(1) << CityStats::round_to_one_decimal(stats.average())
