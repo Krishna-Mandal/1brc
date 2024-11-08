@@ -43,3 +43,11 @@ Less frequent data update in global map.
     real	1m32.764s
     user	10m49.175s
     sys	0m12.184s
+
+## 4th version
+Read files in multiple threads
+
+    real	1m22.036s
+    user	19m4.806s
+    sys	2m41.113s
+
