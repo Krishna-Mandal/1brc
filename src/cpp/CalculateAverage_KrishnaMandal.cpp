@@ -21,8 +21,8 @@ struct CityStats {
     CityStats() : min_temp(DBL_MAX), max_temp(DBL_MIN), total_temp(0), count(0) {}
 
     void update(double temp) {
-        if (temp < min_temp) min_temp = temp;
-        if (temp > max_temp) max_temp = temp;
+        min_temp = std::min(min_temp, temp);
+        max_temp = std::max(max_temp, temp);
         total_temp += temp;
         ++count;
     }
