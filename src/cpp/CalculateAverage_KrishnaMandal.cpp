@@ -54,7 +54,7 @@ void process_chunk(const std::vector<std::string>& lines, std::map<std::string, 
         }
     }
 
-    std::lock_guard lock(mtx);
+    std::lock_guard<std::mutex> lock(mtx);
     for (const auto& [city, stats] : local_data) {
         auto& global_stats = city_data[city];
         global_stats.total_temp = global_stats.total_temp + stats.total_temp;
@@ -65,10 +65,11 @@ void process_chunk(const std::vector<std::string>& lines, std::map<std::string, 
 }
 
 int main() {
-    std::string filePath = "../measurements.txt";
+    std::string filePath = "measurements.txt";
     std::ifstream file(filePath, std::ios::in | std::ios::binary);
     if (!file.is_open()) {
         std::cerr << "Unable to open file '" << filePath << "'\n";
+        std::cerr << std::filesystem::current_path() << "\n";
         return 1;
     }
 
