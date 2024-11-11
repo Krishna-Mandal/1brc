@@ -1,0 +1,2 @@
+startup --output_base="/home/mfw-150/bazeltemp/outputbase"
+startup --output_user_root="/home/mfw-150/bazeltemp/userroot"

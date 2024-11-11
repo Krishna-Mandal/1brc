@@ -4,3 +4,10 @@ cc_binary(
     copts = ["-std=c++17"],
     data = ["//:measurement"],
 )
+
+cc_binary(
+    name = "sh_1brc",
+    srcs = ["CalculateAverage_KrishnaMandal.cpp"],
+    copts = ["-std=c++17"],
+    data = ["//:sh_measurement"],
+)
