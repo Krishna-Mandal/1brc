@@ -96,11 +96,21 @@ int main() {
     std::map<std::string, CityStats> city_data;
     std::vector<std::future<void>> futures;
 
+    std::streampos start = 0;
     for (size_t i = 0; i < num_threads; ++i) {
-        std::streampos start = i * chunk_size;
-        std::streampos end = (i == num_threads - 1) ? file_size : std::streampos((i + 1) * chunk_size);
+
+        std::streampos end = (i == num_threads - 1) ? file_size : start + chunk_size;
+        
+        // Adjust end to the next newline character
+        if (end < file_size) {
+            file.seekg(end);
+            std::string line;
+            std::getline(file, line);
+            end = file.tellg();
+        }
 
         futures.emplace_back(std::async(std::launch::async, process_chunk, filePath, start, end, std::ref(city_data)));
+        start = end;
     }
 
     for (auto& future : futures) {
