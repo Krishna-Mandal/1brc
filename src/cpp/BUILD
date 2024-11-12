@@ -1,3 +1,4 @@
+
 cc_binary(
     name = "1brc",
     srcs = ["CalculateAverage_KrishnaMandal.cpp"],
@@ -5,9 +6,23 @@ cc_binary(
     data = ["//:measurement"],
 )
 
+# cc_binary(
+#     name = "sh_1brc",
+#     srcs = ["CalculateAverage_KrishnaMandal.cpp"],
+#     copts = ["-std=c++17"],
+#     data = ["//:sh_measurement"],
+# )
+
 cc_binary(
-    name = "sh_1brc",
+    name = "jar_1brc",
     srcs = ["CalculateAverage_KrishnaMandal.cpp"],
     copts = ["-std=c++17"],
-    data = ["//:sh_measurement"],
+    data = ["//:jar_measurement"],
+)
+
+cc_binary(
+    name = "cr_1brc",
+    srcs = ["CalculateAverage_KrishnaMandal.cpp"],
+    copts = ["-std=c++17"],
+    data = ["//:rule_measurement"],
 )
