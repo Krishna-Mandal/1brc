@@ -38,8 +38,28 @@ struct CityStats {
 
 std::mutex mtx;
 
+class FileRAII {
+
+public:
+    FileRAII(const std::string& filePath) : file(filePath, std::ios::in | std::ios::binary) {
+        if (!file.is_open()) {
+            throw std::runtime_error("Unable to open file: " + filePath);
+        }
+    }
+    ~FileRAII() {
+        if (file.is_open()) {
+            file.close();
+        }
+    }
+    std::ifstream& get() { return file; }
+
+private:
+    std::ifstream file;
+};
+
 void process_chunk(const std::string& filePath, std::streampos start, std::streampos end, std::map<std::string, CityStats>& city_data) {
-    std::ifstream file(filePath, std::ios::in | std::ios::binary);
+    FileRAII fileRAII(filePath);
+    std::ifstream &file = fileRAII.get();
     file.seekg(start);
 
     std::map<std::string, CityStats> local_data;
@@ -79,12 +99,8 @@ void process_chunk(const std::string& filePath, std::streampos start, std::strea
 
 int main() {
     std::string filePath = "measurements.txt";
-    std::ifstream file(filePath, std::ios::in | std::ios::binary);
-    if (!file.is_open()) {
-        std::cerr << "Unable to open file '" << filePath << "'\n";
-        std::cerr << std::filesystem::current_path() << "\n";
-        return 1;
-    }
+    FileRAII fileRAII(filePath);
+    std::ifstream &file = fileRAII.get();
 
     file.seekg(0, std::ios::end);
     std::streampos file_size = file.tellg();
