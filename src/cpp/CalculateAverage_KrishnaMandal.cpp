@@ -1,6 +1,5 @@
 #include <iostream>
 #include <fstream>
-#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -18,18 +17,6 @@
 #include <charconv>
 #include <iomanip>
 
-double custom_strtod(const std::string& str) {
-    double result;
-    auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), result);
-
-    if (ec == std::errc()) {
-        return result;
-    } else {
-        // Handle conversion error
-        std::cerr << "Conversion error for string: " << str << std::endl;
-        return 0.0;
-    }
-}
 
 struct CityStats {
     double min_temp;
@@ -74,10 +61,11 @@ void process_chunk(const char* data, size_t start, size_t end, std::unordered_ma
             std::string_view city = line.substr(0, delimiter_pos);
             std::string_view temp_str = line.substr(delimiter_pos + 1);
 
-            try {
-                double temp = custom_strtod(std::string(temp_str));
+            double temp;
+            auto [ptr, ec] = std::from_chars(temp_str.data(), temp_str.data() + temp_str.size(), temp);
+            if (ec == std::errc()) {
                 local_data[std::string(city)].update(temp);
-            } catch (const std::exception& e) {
+            } else {
                 std::cerr << "Error converting temperature for city " << city << ": " << temp_str << '\n';
             }
         }
