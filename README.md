@@ -27,7 +27,7 @@ This was just  apartial implementation to read one billion lines one by one by g
 Since it contains so much of I/O, it is very slow, so slow, that i had to kill process.
 
 ## 2nd version :
-Reading a chunk of memory (1MB), instead of each line. Significant improvemt in timing.
+Reading a chunk of memory (1MB), instead of each line. Significant improvemt in timing (Only file read and no other algo implemented yet.).
 
     
     Total lines read: 1000000000
@@ -64,3 +64,11 @@ custom strtod function used. c++17 from_chars is used to do this.
     real	0m37.985s
     user	9m58.953s
     sys	0m0.890s
+
+## 7th version
+Too many string operation in process_chunk. replaced with string_view.
+
+    real	0m24.612s
+    user	6m28.703s
+    sys	0m0.875s
+
