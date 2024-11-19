@@ -58,3 +58,9 @@ Memory Mapping added
     user	11m53.321s
     sys	0m0.919s
 
+## 6th version
+custom strtod function used. c++17 from_chars is used to do this.
+
+    real	0m37.985s
+    user	9m58.953s
+    sys	0m0.890s
