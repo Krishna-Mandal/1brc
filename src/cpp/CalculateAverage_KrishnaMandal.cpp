@@ -2,7 +2,7 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
-#include <map>
+#include <unordered_map>
 #include <string>
 #include <algorithm>
 #include <numeric>
@@ -11,6 +11,10 @@
 #include <mutex>
 #include <cmath>
 #include <future>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <cstdlib> // For strtod
 
 struct CityStats {
     double min_temp;
@@ -38,50 +42,35 @@ struct CityStats {
 
 std::mutex mtx;
 
-class FileRAII {
-
-public:
-    FileRAII(const std::string& filePath) : file(filePath, std::ios::in | std::ios::binary) {
-        if (!file.is_open()) {
-            throw std::runtime_error("Unable to open file: " + filePath);
-        }
-    }
-    ~FileRAII() {
-        if (file.is_open()) {
-            file.close();
-        }
-    }
-    std::ifstream& get() { return file; }
-
-private:
-    std::ifstream file;
-};
-
-void process_chunk(const std::string& filePath, std::streampos start, std::streampos end, std::map<std::string, CityStats>& city_data) {
-    FileRAII fileRAII(filePath);
-    std::ifstream &file = fileRAII.get();
-    file.seekg(start);
-
-    std::map<std::string, CityStats> local_data;
+void process_chunk(const char* data, size_t start, size_t end, std::unordered_map<std::string, CityStats>& city_data) {
+    std::unordered_map<std::string, CityStats> local_data;
+    size_t pos = start;
     std::string line;
 
-    // Ensure we start reading from the beginning of a line
-    if (start != 0) {
-        std::getline(file, line);
-    }
+    while (pos < end) {
+        size_t line_end = pos;
+        while (line_end < end && data[line_end] != '\n') {
+            ++line_end;
+        }
+        line.assign(data + pos, line_end - pos);
 
-    while (file.tellg() < end && std::getline(file, line)) {
-        std::istringstream ss(line);
+        std::istringstream line_ss(line);
         std::string city;
         std::string temp_str;
-        if (std::getline(ss, city, ';') && std::getline(ss, temp_str)) {
+        if (std::getline(line_ss, city, ';') && std::getline(line_ss, temp_str)) {
             try {
-                double temp = std::stod(temp_str);
-                local_data[city].update(temp);
-            } catch (const std::invalid_argument& e) {
-                std::cerr << "Invalid temperature value for city " << city << ": " << temp_str << '\n';
+                char* end_ptr;
+                double temp = std::strtod(temp_str.c_str(), &end_ptr);
+                if (*end_ptr == '\0') { // Ensure the entire string was converted
+                    local_data[city].update(temp);
+                } else {
+                    std::cerr << "Invalid temperature value for city " << city << ": " << temp_str << '\n';
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "Error converting temperature for city " << city << ": " << temp_str << '\n';
             }
         }
+        pos = line_end + 1;
     }
 
     std::lock_guard<std::mutex> lock(mtx);
@@ -93,54 +82,62 @@ void process_chunk(const std::string& filePath, std::streampos start, std::strea
         global_stats.max_temp = std::max(global_stats.max_temp, stats.max_temp);
     }
 
-    // Debug print to check if the chunk was processed
-    std::cout << "Processed chunk from " << start << " to " << end << std::endl;
+    // std::cout << "Processed chunk from " << start << " to " << end << std::endl;
 }
 
 int main() {
-    std::string filePath = "measurements.txt";
-    FileRAII fileRAII(filePath);
-    std::ifstream &file = fileRAII.get();
+    const char* filePath = "measurements.txt";
+    int fd = open(filePath, O_RDONLY);
+    if (fd == -1) {
+        std::cerr << "Unable to open file: " << filePath << std::endl;
+        return 1;
+    }
 
-    file.seekg(0, std::ios::end);
-    std::streampos file_size = file.tellg();
-    file.seekg(0, std::ios::beg);
+    size_t file_size = lseek(fd, 0, SEEK_END);
+    const char* data = static_cast<const char*>(mmap(nullptr, file_size, PROT_READ, MAP_PRIVATE, fd, 0));
+    if (data == MAP_FAILED) {
+        std::cerr << "Memory mapping failed" << std::endl;
+        close(fd);
+        return 1;
+    }
 
     const size_t num_threads = std::thread::hardware_concurrency();
-    std::streampos chunk_size = file_size / num_threads;
+    size_t chunk_size = file_size / num_threads;
 
-    std::map<std::string, CityStats> city_data;
+    std::unordered_map<std::string, CityStats> city_data;
     std::vector<std::future<void>> futures;
 
-    std::streampos start = 0;
+    size_t start = 0;
     for (size_t i = 0; i < num_threads; ++i) {
-
-        std::streampos end = (i == num_threads - 1) ? file_size : start + chunk_size;
-        
-        // Adjust end to the next newline character
-        if (end < file_size) {
-            file.seekg(end);
-            std::string line;
-            std::getline(file, line);
-            end = file.tellg();
+        size_t end = (i == num_threads - 1) ? file_size : start + chunk_size;
+        while (end < file_size && data[end] != '\n') {
+            ++end;
         }
-
-        futures.emplace_back(std::async(std::launch::async, process_chunk, filePath, start, end, std::ref(city_data)));
-        start = end;
+        futures.emplace_back(std::async(std::launch::async, process_chunk, data, start, end, std::ref(city_data)));
+        start = end + 1;
     }
 
     for (auto& future : futures) {
         future.get();
     }
 
-    file.close();
+    munmap(const_cast<char*>(data), file_size);
+    close(fd);
 
-    // Debug print to check if data was aggregated
+    // Collect results into a vector and sort by city name
+    std::vector<std::pair<std::string, CityStats>> sorted_city_data(city_data.begin(), city_data.end());
+    std::sort(sorted_city_data.begin(), sorted_city_data.end(), [](const std::pair<std::string, CityStats>& a, const std::pair<std::string, CityStats>& b) {
+        return a.first < b.first;
+    });
+
     std::cout << "Aggregated data:" << std::endl;
-    for (const auto& [city, stats] : city_data) {
-        std::cout << city << "=" << std::fixed << std::setprecision(1) << CityStats::round_to_one_decimal(stats.min_temp)
-                  << "/" << std::fixed << std::setprecision(1) << CityStats::round_to_one_decimal(stats.average())
-                  << "/" << std::fixed << std::setprecision(1) << CityStats::round_to_one_decimal(stats.max_temp) << '\n';
+    std::cout << std::fixed;
+    std::cout << std::setprecision(1);
+
+    for (const auto& [city, stats] : sorted_city_data) {
+        std::cout << city << "=" << CityStats::round_to_one_decimal(stats.min_temp)
+                  << "/" << CityStats::round_to_one_decimal(stats.average())
+                  << "/" << CityStats::round_to_one_decimal(stats.max_temp) << '\n';
     }
 
     return 0;
