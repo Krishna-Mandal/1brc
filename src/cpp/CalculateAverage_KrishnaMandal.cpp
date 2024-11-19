@@ -21,7 +21,7 @@
 double custom_strtod(const std::string& str) {
     double result;
     auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), result);
-    
+
     if (ec == std::errc()) {
         return result;
     } else {
@@ -60,26 +60,28 @@ std::mutex mtx;
 void process_chunk(const char* data, size_t start, size_t end, std::unordered_map<std::string, CityStats>& city_data) {
     std::unordered_map<std::string, CityStats> local_data;
     size_t pos = start;
-    std::string line;
 
     while (pos < end) {
         size_t line_end = pos;
         while (line_end < end && data[line_end] != '\n') {
             ++line_end;
         }
-        line.assign(data + pos, line_end - pos);
 
-        std::istringstream line_ss(line);
-        std::string city;
-        std::string temp_str;
-        if (std::getline(line_ss, city, ';') && std::getline(line_ss, temp_str)) {
+        std::string_view line(data + pos, line_end - pos);
+
+        size_t delimiter_pos = line.find(';');
+        if (delimiter_pos != std::string_view::npos) {
+            std::string_view city = line.substr(0, delimiter_pos);
+            std::string_view temp_str = line.substr(delimiter_pos + 1);
+
             try {
-                double temp = custom_strtod(temp_str);
-                local_data[city].update(temp);
+                double temp = custom_strtod(std::string(temp_str));
+                local_data[std::string(city)].update(temp);
             } catch (const std::exception& e) {
                 std::cerr << "Error converting temperature for city " << city << ": " << temp_str << '\n';
             }
         }
+
         pos = line_end + 1;
     }
 
