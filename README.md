@@ -51,3 +51,10 @@ Read files in multiple threads
     user	19m4.806s
     sys	2m41.113s
 
+## 5th version
+Memory Mapping added
+
+    real	0m45.891s
+    user	11m53.321s
+    sys	0m0.919s
+
