@@ -1,20 +1,35 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include <vector>
-#include <unordered_map>
 #include <string>
-#include <algorithm>
-#include <numeric>
-#include <filesystem>
-#include <cfloat>
+#include <unordered_map>
+#include <vector>
+#include <thread>
+#include <future>
 #include <mutex>
 #include <cmath>
-#include <future>
-#include <sys/mman.h>
+#include <algorithm>
+#include <limits>
+#include <cstring>
+#include <cfloat>
 #include <fcntl.h>
 #include <unistd.h>
-#include <cstdlib> // For strtod
+#include <sys/mman.h>
+#include <charconv>
+#include <iomanip>
+
+double custom_strtod(const std::string& str) {
+    double result;
+    auto [ptr, ec] = std::from_chars(str.data(), str.data() + str.size(), result);
+    
+    if (ec == std::errc()) {
+        return result;
+    } else {
+        // Handle conversion error
+        std::cerr << "Conversion error for string: " << str << std::endl;
+        return 0.0;
+    }
+}
 
 struct CityStats {
     double min_temp;
@@ -59,13 +74,8 @@ void process_chunk(const char* data, size_t start, size_t end, std::unordered_ma
         std::string temp_str;
         if (std::getline(line_ss, city, ';') && std::getline(line_ss, temp_str)) {
             try {
-                char* end_ptr;
-                double temp = std::strtod(temp_str.c_str(), &end_ptr);
-                if (*end_ptr == '\0') { // Ensure the entire string was converted
-                    local_data[city].update(temp);
-                } else {
-                    std::cerr << "Invalid temperature value for city " << city << ": " << temp_str << '\n';
-                }
+                double temp = custom_strtod(temp_str);
+                local_data[city].update(temp);
             } catch (const std::exception& e) {
                 std::cerr << "Error converting temperature for city " << city << ": " << temp_str << '\n';
             }
@@ -81,8 +91,6 @@ void process_chunk(const char* data, size_t start, size_t end, std::unordered_ma
         global_stats.min_temp = std::min(global_stats.min_temp, stats.min_temp);
         global_stats.max_temp = std::max(global_stats.max_temp, stats.max_temp);
     }
-
-    // std::cout << "Processed chunk from " << start << " to " << end << std::endl;
 }
 
 int main() {
